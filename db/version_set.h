@@ -732,8 +732,6 @@ class Version : public SeparateHelper, private LazyBufferState {
 
   ColumnFamilyData* cfd() const { return cfd_; }
 
-  void ForEachVersionList(void (*callback)(Version*), void* args);
-
   // Return the next Version in the linked list.
   Version* Next() const { return next_; }
 
@@ -826,10 +824,14 @@ class Version : public SeparateHelper, private LazyBufferState {
 struct ObsoleteFileInfo {
   FileMetaData* metadata;
   std::string path;
+  std::shared_ptr<TableCache> table_cache;
 
   ObsoleteFileInfo() noexcept : metadata(nullptr) {}
   ObsoleteFileInfo(FileMetaData* f, const std::string& file_path)
       : metadata(f), path(file_path) {}
+  ObsoleteFileInfo(FileMetaData* f, const std::string& file_path,
+                   std::shared_ptr<TableCache>& _table_cache)
+      : metadata(f), path(file_path), table_cache(_table_cache) {}
 
   ObsoleteFileInfo(const ObsoleteFileInfo&) = delete;
   ObsoleteFileInfo& operator=(const ObsoleteFileInfo&) = delete;
@@ -859,7 +861,7 @@ class BaseReferencedVersionBuilder;
 class VersionSet {
  public:
   VersionSet(const std::string& dbname, const ImmutableDBOptions* db_options,
-             const EnvOptions& env_options, bool seq_per_batch,
+             const EnvOptions* env_options, bool seq_per_batch,
              Cache* table_cache, WriteBufferManager* write_buffer_manager,
              WriteController* write_controller);
   ~VersionSet();
@@ -1085,7 +1087,7 @@ class VersionSet {
   // This function doesn't support leveldb SST filenames
   void GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata);
 
-  void GetObsoleteFiles(std::vector<ObsoleteFileInfo>* files,
+  void GetObsoleteFiles(chash_map<uint64_t, ObsoleteFileInfo>* files,
                         std::vector<std::string>* manifest_filenames,
                         uint64_t min_pending_output);
 
